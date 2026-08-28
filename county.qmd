@@ -14,6 +14,7 @@ execute:
 ```{r}
 library(tidyverse)
 library(maps)
+library(plotly)
 
 county_results <- read_csv(
   "data/20221108__fl__general__county.csv",
@@ -50,35 +51,55 @@ candidate_colors <- c(
 ## 2022 Florida Governor
 
 ```{r}
-ggplot(florida_counties, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = candidate), color = "white", linewidth = 0.25) +
-  coord_fixed() +
+florida_counties <- florida_counties |>
+  mutate(
+    map_alpha = replace_na(vote_share, 0.5),
+    tooltip = paste0(
+      "<b>", str_to_title(subregion), " County</b><br>",
+      "Winner: ", replace_na(candidate, "No result"), "<br>",
+      "Votes: ", scales::comma(replace_na(votes, 0)), "<br>",
+      "Vote share: ", scales::percent(replace_na(vote_share, 0), accuracy = 0.1)
+    )
+  )
+
+county_map <- ggplot(florida_counties, aes(long, lat, group = group, text = tooltip)) +
+  geom_polygon(
+    aes(fill = candidate, alpha = map_alpha),
+    color = "#fffdf8",
+    linewidth = 0.35
+  ) +
+  coord_fixed(ratio = 1, expand = FALSE) +
   scale_fill_manual(
     values = candidate_colors,
     na.value = "#d9dde3",
-    name = "County winner"
+    name = "Winner"
   ) +
+  scale_alpha(range = c(0.62, 1), guide = "none") +
   labs(
+    title = "Florida, county by county",
     subtitle = "Each county is shaded for the candidate with the most votes",
     caption = "Source: Florida Division of Elections, 2022 general election"
   ) +
   theme_void() +
   theme(
-    plot.subtitle = element_text(
-      size = 11,
-      color = "#52616b",
-      margin = margin(b = 12)
+    plot.background = element_rect(fill = "#fbfaf7", color = NA),
+    plot.title = element_text(
+      size = 24,
+      face = "bold",
+      color = "#18252d",
+      margin = margin(b = 5)
     ),
-    plot.caption = element_text(
-      hjust = 0,
-      color = "#687782",
-      margin = margin(t = 12)
-    ),
+    plot.subtitle = element_text(size = 11, color = "#52616b", margin = margin(b = 8)),
+    plot.caption = element_text(hjust = 0, color = "#687782", margin = margin(t = 8)),
     legend.position = "bottom",
     legend.title = element_text(face = "bold"),
     legend.text = element_text(size = 10),
-    plot.margin = margin(12, 18, 12, 18)
+    legend.key = element_rect(fill = "#fbfaf7", color = NA),
+    plot.margin = margin(14, 20, 14, 20)
   )
+
+ggplotly(county_map, tooltip = "text") |>
+  config(displayModeBar = FALSE)
 ```
 
 ```{r}
