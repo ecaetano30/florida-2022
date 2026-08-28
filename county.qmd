@@ -1,0 +1,98 @@
+---
+title: "Florida Governor Election Results"
+format:
+  html:
+    toc: false
+    fig-width: 9
+    fig-height: 7
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{r}
+library(tidyverse)
+library(maps)
+
+county_results <- read_csv(
+  "data/20221108__fl__general__county.csv",
+  show_col_types = FALSE
+)
+
+governor <- county_results |>
+  filter(
+    office == "Governor",
+    !candidate %in% c("OverVotes", "UnderVotes", "WriteinVotes")
+  ) |>
+  group_by(county, candidate) |>
+  summarise(votes = sum(votes, na.rm = TRUE), .groups = "drop") |>
+  group_by(county) |>
+  mutate(
+    total_votes = sum(votes),
+    vote_share = votes / total_votes
+  ) |>
+  slice_max(votes, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(county_key = str_to_lower(county))
+
+florida_counties <- map_data("county", region = "florida") |>
+  mutate(county_key = str_to_lower(subregion)) |>
+  left_join(governor, by = "county_key")
+
+candidate_colors <- c(
+  "DeSantis / Nuñez" = "#1f5b9c",
+  "Crist / Hernandez" = "#c43d4b",
+  "Roos / Rorabaugh" = "#d49a31"
+)
+```
+
+## 2022 Florida Governor
+
+```{r}
+ggplot(florida_counties, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill = candidate), color = "white", linewidth = 0.25) +
+  coord_fixed() +
+  scale_fill_manual(
+    values = candidate_colors,
+    na.value = "#d9dde3",
+    name = "County winner"
+  ) +
+  labs(
+    subtitle = "Each county is shaded for the candidate with the most votes",
+    caption = "Source: Florida Division of Elections, 2022 general election"
+  ) +
+  theme_void() +
+  theme(
+    plot.subtitle = element_text(
+      size = 11,
+      color = "#52616b",
+      margin = margin(b = 12)
+    ),
+    plot.caption = element_text(
+      hjust = 0,
+      color = "#687782",
+      margin = margin(t = 12)
+    ),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    plot.margin = margin(12, 18, 12, 18)
+  )
+```
+
+```{r}
+governor |>
+  group_by(candidate) |>
+  summarise(
+    votes = sum(votes),
+    counties_won = n(),
+    .groups = "drop"
+  ) |>
+  arrange(desc(votes)) |>
+  mutate(vote_share = scales::percent(votes / sum(votes), accuracy = 0.1)) |>
+  knitr::kable(
+    col.names = c("Candidate", "Votes", "Counties won", "Vote share"),
+    format.args = list(big.mark = ",")
+  )
+```
